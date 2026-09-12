@@ -199,7 +199,6 @@ do
   -- Line numbers
   vim.o.relativenumber = true
   vim.o.number = true
-
 end
 
 -- ============================================================
@@ -390,7 +389,7 @@ do
     },
   }
 
-   -- Useful plugin to show you pending keybinds.
+  -- Useful plugin to show you pending keybinds.
   vim.pack.add { gh 'folke/which-key.nvim' }
   require('which-key').setup {
     -- Delay between pressing a key and opening which-key (milliseconds)
@@ -665,6 +664,8 @@ do
         vim.keymap.set(mode, keys, func, { buffer = event.buf, desc = 'LSP: ' .. desc })
       end
 
+      -- Show documentation on hover
+      -- map('K', vim.lsp.buf.hover, 'Hover Documentation')
       -- Rename the variable under your cursor.
       --  Most Language Servers support renaming across files, etc.
       map('grn', vim.lsp.buf.rename, '[R]e[n]ame')
@@ -723,9 +724,21 @@ do
   local servers = {
     -- clangd = {},
     -- gopls = {},
-    -- pyright = {},
-    -- rust_analyzer = {},
-    --
+    basedpyright = {
+      mason = false,
+      settings = {
+        basedpyright = {
+          analysis = {
+            typeCheckingMode = 'standard',
+          },
+        },
+      },
+    },
+    ruff = {},
+    rust_analyzer = {},
+    tsc = {},
+    deno = {},
+    biome = {},
     -- Some languages (like typescript) have entire language plugins that can be useful:
     --    https://github.com/pmizio/typescript-tools.nvim
     --
@@ -779,7 +792,7 @@ do
 
   -- Translates between nvim-lspconfig server names and mason.nvim package names (e.g. lua_ls <-> lua-language-server)
   require('mason-lspconfig').setup {
-    automatic_enable = false, -- Change this to true if you want to automatically enable servers that are installed manually (e.g. via :Mason / :MasonInstall)
+    automatic_enable = true, -- Change this to true if you want to automatically enable servers that are installed manually (e.g. via :Mason / :MasonInstall)
   }
 
   -- Ensure the servers and tools above are installed
@@ -789,17 +802,21 @@ do
   --    :Mason
   --
   -- You can press `g?` for help in this menu.
-  local ensure_installed = vim.tbl_keys(servers or {})
-  vim.list_extend(ensure_installed, {
-    -- You can add other tools here that you want Mason to install
-  })
+  -- local ensure_installed = vim.tbl_keys(servers or {})
+  -- vim.list_extend(ensure_installed, {
+  -- You can add other tools here that you want Mason to install
+  -- })
 
-  require('mason-tool-installer').setup { ensure_installed = ensure_installed }
-
+  local ensure_installed = {}
   for name, server in pairs(servers) do
+    -- Mason installs unless disabled
+    if server.mason ~= false then table.insert(ensure_installed, name) end
+
     vim.lsp.config(name, server)
     vim.lsp.enable(name)
   end
+
+  require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 end
 
 -- ============================================================
@@ -814,6 +831,7 @@ do
     format_on_save = function(bufnr)
       -- You can specify filetypes to autoformat on save here:
       local enabled_filetypes = {
+        swift = true,
         -- lua = true,
         -- python = true,
       }
@@ -828,9 +846,13 @@ do
     },
     -- You can also specify external formatters in here.
     formatters_by_ft = {
-      -- rust = { 'rustfmt' },
-      -- Conform can also run multiple formatters sequentially
-      -- python = { "isort", "black" },
+      swift = { 'swiftformat' },
+      rust = { 'rustfmt' },
+      python = { 'ruff' },
+      javascript = { 'biome' },
+      javascriptreact = { 'biome' },
+      typescript = { 'biome' },
+      typescriptreact = { 'biome' },
       --
       -- You can use 'stop_after_first' to run the first available formatter from the list
       -- javascript = { "prettierd", "prettier", stop_after_first = true },
@@ -903,7 +925,7 @@ do
     },
 
     sources = {
-      default = { 'lsp', 'path', 'snippets' },
+      default = { 'lsp', 'path', 'snippets', 'buffer' },
     },
 
     snippets = { preset = 'luasnip' },
