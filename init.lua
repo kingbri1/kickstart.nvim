@@ -665,7 +665,7 @@ do
       end
 
       -- Show documentation on hover
-      -- map('K', vim.lsp.buf.hover, 'Hover Documentation')
+      map('K', vim.lsp.buf.hover, 'Hover Documentation')
       -- Rename the variable under your cursor.
       --  Most Language Servers support renaming across files, etc.
       map('grn', vim.lsp.buf.rename, '[R]e[n]ame')
