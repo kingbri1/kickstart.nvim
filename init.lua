@@ -758,11 +758,26 @@ do
     end,
   })
 
+  -- Checks for tsc version to determine LSP used
+  -- Use package.json instead of running a shell command
+  local function has_tsc_lsp(bufnr)
+    local root = vim.fs.root(bufnr, 'package.json')
+    if not root then return false end
+
+    local package = vim.fs.joinpath(root, 'node_modules/typescript/package.json')
+    if not vim.uv.fs_stat(package) then return false end
+
+    local data = vim.json.decode(table.concat(vim.fn.readfile(package), '\n'))
+    local version = vim.version.parse(data.version)
+
+    return version and version.major >= 7
+  end
+
   -- Enable the following language servers
   --  Feel free to add/remove any LSPs that you want here. They will automatically be installed.
   --  See `:help lsp-config` for information about keys and how to configure
   ---@type table<string, vim.lsp.Config>
-  local servers = {
+  local mason_packages = {
     -- clangd = {},
     -- gopls = {},
     -- pyright = {},
@@ -774,19 +789,22 @@ do
     -- But for many setups, the LSP (`rust_analyzer`) will work just fine
     -- rust_analyzer = {},
 
-    basedpyright = {
-      mason = false,
-      settings = {
-        basedpyright = {
-          analysis = {
-            typeCheckingMode = 'standard',
-          },
-        },
-      },
-    },
     ruff = {},
     rust_analyzer = {},
-    tsc = {},
+    tsc = {
+      root_dir = function(bufnr, on_dir)
+        if has_tsc_lsp(bufnr) then
+          on_dir(vim.fs.root(bufnr, 'package.json'))
+        end
+      end,
+    },
+    ts_ls = {
+      root_dir = function(bufnr, on_dir)
+        if not has_tsc_lsp(bufnr) then
+          on_dir(vim.fs.root(bufnr, 'package.json'))
+        end
+      end,
+    },
     deno = {},
     biome = {},
     stylua = {}, -- Used to format Lua code
@@ -824,6 +842,18 @@ do
     },
   }
 
+  local external_servers = {
+    basedpyright = {
+      settings = {
+        basedpyright = {
+          analysis = {
+            typeCheckingMode = 'standard',
+          },
+        },
+      },
+    },
+  }
+
   vim.pack.add {
     gh 'neovim/nvim-lspconfig',
     gh 'mason-org/mason.nvim',
@@ -836,7 +866,7 @@ do
 
   -- Translates between nvim-lspconfig server names and mason.nvim package names (e.g. lua_ls <-> lua-language-server)
   require('mason-lspconfig').setup {
-    automatic_enable = true, -- Change this to true if you want to automatically enable servers that are installed manually (e.g. via :Mason / :MasonInstall)
+    automatic_enable = false, -- Change this to true if you want to automatically enable servers that are installed manually (e.g. via :Mason / :MasonInstall)
   }
 
   -- Ensure the servers and tools above are installed
@@ -851,16 +881,13 @@ do
   -- You can add other tools here that you want Mason to install
   -- })
 
-  local ensure_installed = {}
-  for name, server in pairs(servers) do
-    -- Mason installs unless disabled
-    if server.mason ~= false then table.insert(ensure_installed, name) end
+  require('mason-tool-installer').setup { ensure_installed = vim.tbl_keys(mason_packages) }
 
+  local servers = vim.tbl_extend('force', mason_packages, external_servers)
+  for name, server in pairs(servers) do
     vim.lsp.config(name, server)
     vim.lsp.enable(name)
   end
-
-  require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 end
 
 -- ============================================================
